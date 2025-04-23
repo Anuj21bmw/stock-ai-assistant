@@ -35,7 +35,6 @@ default_period = st.sidebar.selectbox("Default Time Period",
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Cache for stock data to avoid repeated API calls
 if "stock_cache" not in st.session_state:
     st.session_state.stock_cache = {}
 
@@ -236,12 +235,10 @@ def create_price_chart(ticker, period, chart_type="line"):
     
     return fig, stats
 
-# Compare multiple stocks
 def compare_stocks(main_ticker, comparison_tickers, period):
     if not comparison_tickers:
         return create_price_chart(main_ticker, period)
     
-    # Add the main ticker to the list for comparison
     all_tickers = [main_ticker] + comparison_tickers
     
     # Fetch data for all tickers
@@ -249,7 +246,7 @@ def compare_stocks(main_ticker, comparison_tickers, period):
     for ticker in all_tickers:
         hist = get_stock_data(ticker, period)
         if not hist.empty:
-            # Normalize to percentage change from first day for fair comparison
+            
             price_data[ticker] = hist['Close'] / hist['Close'].iloc[0] * 100
     
     if not price_data:
@@ -279,18 +276,15 @@ def compare_stocks(main_ticker, comparison_tickers, period):
     
     return fig, stats
 
-# Generate financial metrics table
 def get_financial_metrics(ticker):
     try:
         stock = yf.Ticker(ticker)
         
-        # Get key statistics
         info = stock.info
         
         # Get income statement data
         income_stmt = stock.income_stmt
         
-        # Create a metrics table
         metrics = {
             "Market Cap": info.get("marketCap", "N/A"),
             "PE Ratio": info.get("trailingPE", "N/A"),
@@ -301,7 +295,6 @@ def get_financial_metrics(ticker):
             "Avg Volume": info.get("averageVolume", "N/A"),
         }
         
-        # Format the metrics
         formatted_metrics = {}
         for key, value in metrics.items():
             if key == "Market Cap" and isinstance(value, (int, float)):
@@ -313,10 +306,8 @@ def get_financial_metrics(ticker):
             else:
                 formatted_metrics[key] = value
         
-        # Create a pandas DataFrame for display
         metrics_df = pd.DataFrame(formatted_metrics.items(), columns=["Metric", "Value"])
         
-        # Generate a text summary
         summary = f"""
         Financial Summary for {ticker}:
         
@@ -330,10 +321,8 @@ def get_financial_metrics(ticker):
         
         # Check if we have revenue and income data
         if not income_stmt.empty:
-            # Create a figure for financial chart
             fig, ax = plt.subplots(figsize=(10, 6))
             
-            # Plot revenue and income
             if 'Total Revenue' in income_stmt.index:
                 revenue = income_stmt.loc['Total Revenue']
                 ax.bar(revenue.index.astype(str), revenue/1e9, alpha=0.7, label='Revenue')
@@ -363,7 +352,6 @@ def get_company_info(ticker):
         stock = yf.Ticker(ticker)
         info = stock.info
         
-        # Extract relevant company information
         company_data = {
             "Name": info.get("shortName", ticker),
             "Sector": info.get("sector", "N/A"),
@@ -394,7 +382,6 @@ def get_company_info(ticker):
     except Exception as e:
         return f"Could not retrieve company information for {ticker}: {str(e)}"
 
-# Save response to Excel
 def save_to_excel(prompt, result):
     try:
         df = pd.read_excel(EXCEL_PATH)
@@ -409,7 +396,6 @@ def save_to_excel(prompt, result):
         st.error(f"Error saving to Excel: {str(e)}")
         return False
 
-# Handle different types of analysis
 def handle_query(query_data, original_prompt):
     ticker = query_data["ticker"]
     period = query_data["period"]
@@ -421,9 +407,7 @@ def handle_query(query_data, original_prompt):
     fig = None
     is_visualization = False
     
-    # Check if this is a simple price query
     if "today" in original_prompt.lower() and "price" in original_prompt.lower():
-        # Get the latest stock price
         try:
             stock = yf.Ticker(ticker)
             today_data = stock.history(period="1d")
@@ -465,7 +449,6 @@ def handle_query(query_data, original_prompt):
         except Exception as e:
             result_content = f"Error retrieving price data for {ticker}: {str(e)}"
     
-    # Check if user wants a visualization
     elif "chart" in original_prompt.lower() or "plot" in original_prompt.lower() or "graph" in original_prompt.lower() or "visualize" in original_prompt.lower() or "show" in original_prompt.lower():
         is_visualization = True
         
@@ -476,7 +459,6 @@ def handle_query(query_data, original_prompt):
             fig, result_content = compare_stocks(ticker, comparison_tickers, period)
         
         elif analysis_type == "prediction":
-            # For predictions, we'll use historical data with projection
             hist = get_stock_data(ticker, period)
             if not hist.empty:
                 last_price = hist['Close'].iloc[-1]
@@ -491,7 +473,6 @@ def handle_query(query_data, original_prompt):
                 Recent trend: {trend}
                 """
                 
-                # Create a chart with historical data and projection
                 fig, ax = plt.subplots(figsize=(10, 6))
                 hist['Close'].plot(ax=ax, label='Historical')
                 
@@ -522,10 +503,8 @@ def handle_query(query_data, original_prompt):
             result_content = text_summary
             fig = metrics_fig
     
-    # For all other types of queries
     else:
         if analysis_type == "price_history":
-            # Get the latest stock information
             hist = get_stock_data(ticker, period)
             if not hist.empty:
                 current_price = hist['Close'].iloc[-1]
@@ -550,18 +529,14 @@ def handle_query(query_data, original_prompt):
     # For visualization requests, create an image buffer to save in Excel
     excel_result = result_content
     if is_visualization and fig is not None:
-        # Add a note that a visualization was created
         excel_result = result_content + "\n\n[Visualization was generated and displayed in the app]"
 
-    # Save to Excel (original prompt and result)
     save_to_excel(original_prompt, excel_result)
     
     return fig, result_content
 
-# Main app interface
 st.title("📈 Excel Stock AI Assistant")
 
-# Add two columns layout
 col1, col2 = st.columns(2)
 
 with col1:
@@ -571,13 +546,10 @@ with col1:
     
     submit_button = st.button("Generate Result", type="primary")
 
-# Process when button is clicked
 if submit_button and user_input:
-    # Parse the query
     with st.spinner("Analyzing your request..."):
         query_data = parse_query_with_ai(user_input)
     
-    # Process the query and get response
     with st.spinner(f"Processing data for {query_data['ticker']}..."):
         fig, result_content = handle_query(query_data, user_input)
     
@@ -588,21 +560,18 @@ if submit_button and user_input:
         if fig:
             st.pyplot(fig)
     
-    # Show success message
     st.success("✅ Result generated and saved to Excel!")
     
-    # Update messages for chat history if needed
     if "messages" in st.session_state:
         st.session_state.messages.append({"role": "user", "content": user_input})
         st.session_state.messages.append({"role": "assistant", "content": result_content})
 
-# Display Excel contents (showing just the two columns)
 st.header("Excel Data Log")
 try:
     excel_data = pd.read_excel(EXCEL_PATH)
     st.dataframe(excel_data, use_container_width=True)
     
-    # Add download button
+   
     excel_buffer = io.BytesIO()
     excel_data.to_excel(excel_buffer, index=False)
     excel_buffer.seek(0)
